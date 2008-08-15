@@ -1,0 +1,45 @@
+Getopt-Hash
+
+I have simple command line option processing needs.  I don't want to configure a list of
+allowed options and I want to be able to mix-and-match single-character ("-h") with long 
+("--version") options.  This module is intended to fill that role.  It processes @ARGV,
+returns a hash of command line options and then gets out of your way.
+
+INSTALLATION
+
+To install this module, run the following commands:
+
+	perl Makefile.PL
+	make
+	make test
+	make install
+
+SUPPORT AND DOCUMENTATION
+
+After installing, you can find documentation for this module with the
+perldoc command.
+
+    perldoc Getopt::Hash
+
+You can also look for information at:
+
+    RT, CPAN's request tracker
+        http://rt.cpan.org/NoAuth/Bugs.html?Dist=Getopt-Hash
+
+    AnnoCPAN, Annotated CPAN documentation
+        http://annocpan.org/dist/Getopt-Hash
+
+    CPAN Ratings
+        http://cpanratings.perl.org/d/Getopt-Hash
+
+    Search CPAN
+        http://search.cpan.org/dist/Getopt-Hash
+
+
+COPYRIGHT AND LICENCE
+
+Copyright (C) 2008 Blair Christensen
+
+This program is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+

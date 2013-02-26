@@ -1,156 +1,227 @@
+#
+# This file is part of Getopt-Hash
+#
+# This software is copyright (c) 2013 by Rodrigo de Oliveira.
+#
+# This is free software; you can redistribute it and/or modify it under
+# the same terms as the Perl 5 programming language system itself.
+#
 package Getopt::Hash;
-
-use warnings;
 use strict;
-use Carp qw(croak);
+use warnings;
+use utf8::all;
+ 
+our $VERSION = '0.01';
+ 
+sub import {
+    my $class = shift;
+    my %args = @_;
+    if( defined $args{var} ) {
+        if( $args{var} !~ /::/ ) {
+            my $where = caller(0);
+            $args{var} = $where . '::' . $args{var};
+        }
+        my %hash = getopt( arrays=>0 );
+        no strict 'refs';
+        *{ $args{var} } = \%hash; 
+    }
+    elsif( defined $args{later} ) {
+        # import getopt() so that user can call it
+        my $where = caller(0);
+        no strict 'refs';
+        *{ $where . '::getopt' } = \&getopt;
+    }
+    else {
+        # into %ARGV
+        getopt( arrays=>0 );
+    }
+    #unshift @ARGV, @barewords;
+    return;
+}
+
+sub getopt_array {
+    getopt( arrays=>1 , @_ );
+}
+
+sub getopt {
+    my ( $last_opt, $last_done, %hash );
+    my %opts;
+    # get my own opts
+    my @argv = @_ == 0
+      ? @ARGV 
+      : do {
+           %opts = @_; 
+           @{ delete $opts{argv} || [] };
+      };
+    @argv or @argv = @ARGV;
+    return () unless @argv;
+    $hash{_argv} = [ @argv ];
+    for my $opt (@argv) {
+        if ( $opt =~ m/^-(\w)$/ ) {   # single letter
+            $hash{$1} ++;
+            $last_done= 1;
+        } elsif ( $opt =~ m/^-+(.+)/ ) {
+            $last_opt = $1;
+            $last_done=0;
+            if( $last_opt =~ m/^(.*)\=(.*)$/ ) {
+                push @{ $hash{$1} }, $2 ;
+                $last_done= 1;
+            } else {
+                $hash{$last_opt} = [] unless ref $hash{$last_opt};
+            }
+        }
+        else {
+            #$opt = Encode::encode_utf8($opt) if Encode::is_utf8($opt);
+            $last_opt ='' if !$opts{arrays} && ( $last_done || ! defined $last_opt );
+            push @{ $hash{$last_opt} }, $opt; 
+            $last_done = 1;
+        }
+    }
+    # convert single option => scalar
+    for( keys %hash ) {
+        next unless ref( $hash{$_} ) eq 'ARRAY';
+        if( @{ $hash{$_} } == 0 ) {
+            $hash{$_} = ();
+        } elsif( @{ $hash{$_} } == 1 ) {
+            $hash{$_} = $hash{$_}->[0]; 
+        }
+    }
+    if( defined wantarray ) {
+        return %hash;
+    } else {
+        %ARGV = %hash;
+    }
+}
+
+sub getopt_validate {
+    my %args = @_;
+    $args{''}={isa=>'Any'};  # ignores this
+    require Data::Validator;
+    my $rule = Data::Validator->new( %args );
+    @_ = ($rule, %ARGV );
+    goto \&Data::Validator::validate;
+}
+ 
+1;
+
+__END__
+
+=pod
 
 =head1 NAME
 
-Getopt::Hash - Process command line options based upon convention rather than configuration.
+Getopt::Hash
 
 =head1 VERSION
 
-Version 0.01
-
-=cut
-
-our $VERSION = '0.01';
-
+version 0.01
 
 =head1 SYNOPSIS
 
-I have simple command line option processing needs.  I don't want to configure a list of
-allowed options and I want to be able to mix-and-match single-character ("-h") with long 
-("--version") options.  This module is intended to fill that role.  It processes I<@ARGV>,
-returns a hash of command line options and then gets out of your way.
-
-Basic usage:
-
     use Getopt::Hash;
+    say $ARGV{'flag'};
 
-    # Processes @ARGV and returns hash of identified options.
-    my $opts = Getopt::Hash::getopts();
+=head1 DESCRIPTION
 
-But examples are always more illustrative:
+This is, yup, yet another Getopt module, a very lightweight one. It's not declarative 
+in any way, ie, it does not support specs, like L<Getopt::Long> et al do.
 
-=over 
+On the other hand, it can validate your parameters using the L<Data::Validator> syntax. 
+But that's a hidden feature for now (you'll need to install L<Data::Validator> yourself
+and find a way to run it by reading this source code). 
 
-=item * When I<@ARGV> = ()
+=head1 NAME
 
-Returns C<{}>
+Getopt::Hash - yet another yet-another Getopt module
 
-=item * When I<@ARGV> = ( '-a' )
+=head1 VERSION
 
-Returns C<{ 'a' =E<gt> '' }>
+version 0.01
 
-=item * When I<@ARGV> = ( '-a', '-b=bravo', '-c:charlie', '-verbose' )
+=head1 USAGE
 
-Returns C<{ 'a' =E<gt> '', 'b' =E<gt> 'bravo', 'c' =E<gt> 'charlie', 'verbose' =E<gt> '' }>
+The rules:
 
-=item * When I<@ARGV> = ( '-a', '--', '-b', 'foo', 'bar', 'baz' )
+    * -<char>              
+        does not consume barewords (ie. -f, -h, ...)
 
-Returns C<{ 'a' =E<gt> '' }>
+    * -<str> <bareword>
+    * --<str> <bareword>  
+        will eat up the next bare word (-type f, --file f.txt)
 
-=back
+    * -<char|str>=<val> and --<str>=<val> 
+        consumes its value and nothing more 
 
-=head1 EXPORT
+    * <str>
+        gets pushed into an array in $ARGV{''}
 
-No functions are currently exported.
+Some code examples:
 
-=cut
+    perl myprog.pl -h -file foo --file bar
+    use Getopt::Hash;   # parses the @ARGV into %ARGV
+    say YAML::Dump \%ARGV;
+    ---
+    h: 1
+    file: 
+      - foo
+      - bar
+    
+    # single flags like -h are checked with exists:
+    
+    say 'help...' if exists $ARGV{'h'};
 
-our @EXPORT_OK = ();
+    # barewords are pushed into the key '_'
+    
+    perl myprog.pl file1.c file2.c 
+    say "file: $_" for @{ $ARGV{''} };
 
-=head1 FUNCTIONS
+Or you can just use a modular version:
 
-=head2 getopts
+    use Getopt::Hash later=>1; # nothing happens
 
-Returns hash reference of command line options found in I<@ARGV>.
+    getopt;   #  imports into %ARGV
+    my %argv = getopt;   #  imports into %argv instead
 
-=cut
+=head3 array mode
 
-sub getopts {
-  my $opts  = {};
-  while (my $arg = shift @ARGV) {
-    last if ($arg eq '--');
-    # We support several argument formats:
-    #   -h 
-    #   -h=foo
-    #   -h:foo
-    #   -help
-    if ($arg =~ /^\-(\w+)[=:]?(.*)$/x) {
-      my ($k, $v) = ( $1, $2 );
-      # if a) there was a value and b) the value has whitespace then 
-      # try and trim the leading-and-trailing quote characters (if any)
-      # TODO This makes me queasy
-      if ( $v && $v =~ /^(["'])(.+)(["'])$/x ) {
-        $v = $2 if ($1 eq $3);
-      }
-      $opts->{ $k } = $v;
-    } 
-    else {
-      unshift @ARGV, $arg; # done processing.  push item back at front of list.
-      last;
-    }
-  }
+There's also a special mode that can be set with C<array => 1> that will
+make a flag consume all following barewords:
 
-  return $opts;
-}
-
-=head1 AUTHOR
-
-Blair Christensen, C<< <blair at devclue.com> >>
+    perl myprog.pl -a -b --files f1.txt f2.txt
+    use Getopt::Hash array => 1; 
+    say YAML::Dump \%ARGV;
+    ---
+    h: ~
+    file: 
+      - foo
+      - bar
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-getopt-hash at rt.cpan.org>, or through
-the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Getopt-Hash>.  I will be notified, and then you'll
-automatically be notified of progress on your bug as I make changes.
+This is *ALPHA* software. And despite its small footprint,
+this is lurking with nasty bugs and potential api changes. 
 
+Complaints should be filed to the Getopt Foundation, which
+has been treating severe NIH syndrome since 1980.
 
+=head1 SEE ALSO
 
+L<Getopt::Whatever> - no declarative spec like this module,
+but the options in %ARGV and @ARGV are not where I expect them
+to be. 
 
-=head1 SUPPORT
+L<Getopt::Casual> - similar to this module, but very keen on 
+turning entries into single param options.
 
-You can find documentation for this module with the perldoc command.
+=head1 AUTHOR
 
-    perldoc Getopt::Hash
+Rodrigo de Oliveira <rodrigolive@gmail.com>
 
+=head1 COPYRIGHT AND LICENSE
 
-You can also look for information at:
+This software is copyright (c) 2013 by Rodrigo de Oliveira.
 
-=over 4
-
-=item * RT: CPAN's request tracker
-
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Getopt-Hash>
-
-=item * AnnoCPAN: Annotated CPAN documentation
-
-L<http://annocpan.org/dist/Getopt-Hash>
-
-=item * CPAN Ratings
-
-L<http://cpanratings.perl.org/d/Getopt-Hash>
-
-=item * Search CPAN
-
-L<http://search.cpan.org/dist/Getopt-Hash>
-
-=back
-
-
-=head1 ACKNOWLEDGEMENTS
-
-
-=head1 COPYRIGHT & LICENSE
-
-Copyright 2008 Blair Christensen, all rights reserved.
-
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
-
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
 
 =cut
-
-1; # End of Getopt::Hash

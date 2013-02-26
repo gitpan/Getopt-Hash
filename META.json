@@ -1,0 +1,43 @@
+{
+   "abstract" : "fast, no spec getopt",
+   "author" : [
+      "Rodrigo de Oliveira <rodrigolive@gmail.com>"
+   ],
+   "dynamic_config" : 0,
+   "generated_by" : "Dist::Zilla version 4.300021, CPAN::Meta::Converter version 2.120921",
+   "license" : [
+      "perl_5"
+   ],
+   "meta-spec" : {
+      "url" : "http://search.cpan.org/perldoc?CPAN::Meta::Spec",
+      "version" : "2"
+   },
+   "name" : "Getopt-Hash",
+   "prereqs" : {
+      "configure" : {
+         "requires" : {
+            "ExtUtils::MakeMaker" : "6.30"
+         }
+      },
+      "runtime" : {
+         "requires" : {
+            "perl" : "5.006",
+            "utf8::all" : "0"
+         }
+      }
+   },
+   "release_status" : "stable",
+   "resources" : {
+      "bugtracker" : {
+         "web" : "git://github.com/rodrigolive/getopt-hash.git/issues"
+      },
+      "homepage" : "http://search.cpan.org/dist/Getopt-Hash/",
+      "repository" : {
+         "type" : "git",
+         "url" : "git://github.com/rodrigolive/getopt-hash.git",
+         "web" : "http://github.com/rodrigolive/getopt-hash"
+      }
+   },
+   "version" : "0.01"
+}
+
